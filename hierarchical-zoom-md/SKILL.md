@@ -33,13 +33,23 @@ Markdown 内嵌在 HTML 中
 浏览器直接 file:// 双击即可打开
 HTML 模板要求
 
-Markdown 放在 HTML 最上面或最下面，方便修改，例如：
+使用本 skill 目录下的 `zoom.html`（与 SKILL.md 同目录）作为唯一固定模板。
 
-<script>
-const MARKDOWN_CONTENT = `
-# ...
-`;
-</script>
+- Markdown 放在 HTML 最上方 `const MARKDOWN_CONTENT = \`...\`;` 内，方便修改
+- 复制 `zoom.html` 后**只替换两个反引号之间的 Markdown 内容**，其余 HTML/CSS/JS 一律保持逐字节不变，保证每次生成的 zoom.html 结构完全一致
+
+模板中的 `MARKDOWN_CONTENT` 示例结构：
+
+```
+# 标题
+父节点摘要（概括所有子节点）
+
+## 子节点
+子节点摘要
+
+### 叶子节点
+叶子节点摘要
+```
 
 其余 HTML 负责：
 
@@ -56,19 +66,20 @@ const MARKDOWN_CONTENT = `
 阅读输入内容
 构建符合规范的 Markdown 层级
 将 Markdown 写入 MARKDOWN_CONTENT
-使用固定 HTML 模板生成 zoom.html
+复制本 skill 目录下的 zoom.html 模板，仅替换 MARKDOWN_CONTENT 生成 zoom.html
 保存至
 {output-dir}/{topic-slug}/zoom.html
-HTML 模板
 
-使用固定模板生成页面。
+模板文件
 
-要求：
+模板为本 skill 目录下的 `zoom.html`（与 SKILL.md 同目录）。
 
-Markdown 放在整个 HTML 最上方（推荐）或最下方
-HTML 为单文件
-不修改页面交互逻辑
-仅替换 MARKDOWN_CONTENT
+使用要求：
+
+- Markdown 放在整个 HTML 最上方 `const MARKDOWN_CONTENT` 内
+- HTML 为单文件，自包含
+- 不修改页面交互逻辑、样式、任何 JS
+- 仅替换 `MARKDOWN_CONTENT` 两个反引号之间的内容，其余逐字节保留
 本地运行要求
 
 必须满足：

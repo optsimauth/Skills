@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hierarchical Zoom View</title>
+<style>
+  :root {
+    --bg: #f7f7f5;
+    --card-bg: #ffffff;
+    --border: #e5e5e0;
+    --text: #2b2b28;
+    --text-muted: #7a7a72;
+    --accent: #3a3a34;
+    --accent-hover: #f0f0ec;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  .container {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 24px 20px 80px;
+  }
+  .breadcrumb {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    padding: 10px 14px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 20px;
+    font-size: 14px;
+  }
+  .breadcrumb span.crumb {
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: 2px 4px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  .breadcrumb span.crumb:hover { background: var(--accent-hover); color: var(--text); }
+  .breadcrumb span.crumb.current { color: var(--text); font-weight: 600; cursor: default; }
+  .breadcrumb span.crumb.current:hover { background: none; }
+  .breadcrumb .sep { color: var(--border); }
+  .node-header { margin-bottom: 20px; }
+  .node-header h1 { font-size: 22px; margin: 0 0 8px; }
+  .node-header p {
+    color: var(--text-muted);
+    font-size: 15px;
+    line-height: 1.6;
+    margin: 0;
+    white-space: pre-wrap;
+  }
+  .child-list { display: flex; flex-direction: column; gap: 10px; }
+  .child-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+    cursor: pointer;
+    transition: border-color 0.15s, transform 0.1s;
+  }
+  .child-card:hover { border-color: #c9c9c0; transform: translateX(2px); }
+  .child-card .title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .child-card h3 { margin: 0; font-size: 16px; font-weight: 600; }
+  .child-card .arrow { color: var(--text-muted); font-size: 14px; flex-shrink: 0; }
+  .child-card .leaf-tag {
+    font-size: 11px;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1px 6px;
+    flex-shrink: 0;
+  }
+  .child-card p {
+    margin: 6px 0 0;
+    font-size: 13.5px;
+    color: var(--text-muted);
+    line-height: 1.5;
+    white-space: pre-wrap;
+  }
+  .empty-hint { color: var(--text-muted); font-size: 14px; text-align: center; padding: 40px 0; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════
+     在此处编辑 Markdown 内容 — 放在最上面方便修改
+     仅替换两个反引号之间的内容，其余 HTML/CSS/JS 一律不动
+     ═══════════════════════════════════════════════════════ -->
+<script>
+const MARKDOWN_CONTENT = `
+# 标题
+父节点摘要（概括所有子节点），每个标题下紧跟 1~3 句摘要。
+
+## 子节点一
+子节点摘要。
+
+### 叶子节点
+叶子节点摘要，递归拆分直到无需继续拆解。
+`;
+</script>
+
+<div class="container">
+  <div id="breadcrumb" class="breadcrumb"></div>
+  <div id="nodeHeader" class="node-header"></div>
+  <div id="childList" class="child-list"></div>
+</div>
+
+<script>
+/* ── 解析：Markdown 标题层级 -> 树结构 ── */
+function parseMarkdownToTree(md) {
+  var lines = md.replace(/\r\n/g, "\n").split("\n");
+  var root = { level: 0, title: "ROOT", content: "", children: [] };
+  var stack = [root];
+  var pendingContentLines = [];
+  var currentNode = null;
+
+  function flushContent() {
+    if (currentNode) {
+      currentNode.content = pendingContentLines.join("\n").trim();
+    }
+    pendingContentLines = [];
+  }
+
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+    var match = /^(#{1,6})\s+(.*)$/.exec(line.trim());
+    if (match) {
+      flushContent();
+      var level = match[1].length;
+      var title = match[2].trim();
+      var node = { level: level, title: title, content: "", children: [] };
+
+      while (stack.length && stack[stack.length - 1].level >= level) {
+        stack.pop();
+      }
+      stack[stack.length - 1].children.push(node);
+      stack.push(node);
+      currentNode = node;
+    } else {
+      if (currentNode && line.trim() !== "") {
+        pendingContentLines.push(line.trim());
+      } else if (currentNode && pendingContentLines.length > 0) {
+        pendingContentLines.push("");
+      }
+    }
+  }
+  flushContent();
+  return root;
+}
+
+/* ── 渲染 ── */
+var TREE = parseMarkdownToTree(MARKDOWN_CONTENT);
+var path = [TREE];
+
+function render() {
+  renderBreadcrumb();
+  renderCurrentNode();
+}
+
+function renderBreadcrumb() {
+  var el = document.getElementById("breadcrumb");
+  el.innerHTML = "";
+  path.forEach(function(node, idx) {
+    if (idx > 0) {
+      var sep = document.createElement("span");
+      sep.className = "sep";
+      sep.textContent = " › ";
+      el.appendChild(sep);
+    }
+    var crumb = document.createElement("span");
+    crumb.className = "crumb" + (idx === path.length - 1 ? " current" : "");
+    crumb.textContent = idx === 0 ? "根目录" : node.title;
+    (function(targetIdx) {
+      crumb.onclick = function() {
+        path = path.slice(0, targetIdx + 1);
+        render();
+      };
+    })(idx);
+    el.appendChild(crumb);
+  });
+}
+
+function renderCurrentNode() {
+  var current = path[path.length - 1];
+  var headerEl = document.getElementById("nodeHeader");
+  var listEl = document.getElementById("childList");
+
+  if (path.length === 1) {
+    headerEl.innerHTML = "";
+  } else {
+    headerEl.innerHTML = '<h1>' + escapeHtml(current.title) + '</h1>' +
+      (current.content ? '<p>' + escapeHtml(current.content) + '</p>' : "");
+  }
+
+  listEl.innerHTML = "";
+
+  if (current.children.length === 0) {
+    if (path.length === 1) {
+      listEl.innerHTML = '<div class="empty-hint">暂无内容</div>';
+    }
+    return;
+  }
+
+  current.children.forEach(function(child) {
+    var card = document.createElement("div");
+    card.className = "child-card";
+    var isLeaf = child.children.length === 0;
+    var excerpt = (child.content || "").split("\n")[0];
+
+    card.innerHTML =
+      '<div class="title-row">' +
+        '<h3>' + escapeHtml(child.title) + '</h3>' +
+        (isLeaf ? '<span class="leaf-tag">详情</span>' : '<span class="arrow">›</span>') +
+      '</div>' +
+      (excerpt ? '<p>' + escapeHtml(excerpt) + '</p>' : "");
+
+    (function(c) {
+      card.onclick = function() {
+        path = path.concat([c]);
+        render();
+      };
+    })(child);
+    listEl.appendChild(card);
+  });
+}
+
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+render();
+</script>
+</body>
+</html>
