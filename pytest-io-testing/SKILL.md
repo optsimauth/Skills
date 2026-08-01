@@ -8,6 +8,7 @@ description: 用输入输出对（input/output pairs）为AI生成的Python代�
 
 **每个源文件对应一个同名测试文件，测试只做一件事：给输入、比对输出。**
 用户不看实现代码，只看 `pytest -v` 的结果（PASSED/FAILED + 期望值 vs 实际值）来判断代码对错。
+case 的取舍由被测函数实现里是否存在对应分支决定，不是套正常/边界/异常模板；实现里没有针对某输入的专属分支，就不为它单独写 case。
 
 ## 目录约定
 
@@ -23,31 +24,31 @@ project/
 
 ## 写测试的标准写法
 
-用 `@pytest.mark.parametrize` + 一份 `(输入..., 期望输出)` 列表，不要为每组数据单独写一个函数。
+用 `@pytest.mark.parametrize` + 一份 `(输入..., 期望输出, 说明)` 列表，不要为每组数据单独写一个函数。
 
 ```python
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 from xxx import 被测函数
 
-# 核心：只维护这一份 (输入, 期望输出) 列表，覆盖正常/边界/异常场景
+# 核心：只维护这一份 (输入, 期望输出, 说明) 列表
 cases = [
-    (输入1, 输入2, 期望输出),
-    # ... 尽量覆盖：正常值、边界值(0、空、极大极小)、异常值
+    (输入1, 输入2, 期望输出, "说明"),
 ]
 
 import pytest
 
-@pytest.mark.parametrize("参数名1,参数名2,expected", cases)
-def test_被测函数(参数名1, 参数名2, expected):
+@pytest.mark.parametrize("参数名1,参数名2,expected,note", cases)
+def test_被测函数(参数名1, 参数名2, expected, note):
     实际 = 被测函数(参数名1, 参数名2)
-    assert 实际 == expected, f"输入({参数名1},{参数名2})，期望{expected}，实际{实际}"
+    assert 实际 == expected, f"[{note}] 输入({参数名1},{参数名2})，期望{expected}，实际{实际}"
 ```
 
 **关键规则**：
 
 - `parametrize` 第一个参数是字符串，逗号分隔的名字必须和下面函数签名的参数名**完全一致**、数量一致，否则 pytest 会在收集阶段直接报错。
-- 每个 assert 都要写 `f"输入...期望...实际..."` 这样的失败信息，让用户不看代码就知道错在哪。
+- 每个 assert 都要写 `f"[{note}] 输入...期望...实际..."` 这样的失败信息，让用户不看代码就知道错在哪。
+- 一个测试文件内，所有函数的 cases 列表统一定义在文件顶部（import 之后、第一个 `def test_...` 之前），不与各自的测试函数交替书写。
 - 如果测试涉及状态变化（如账户锁定、计数器），涉及"行为描述"而非纯输入输出映射时，测试函数名用中文描述期望的业务行为（如 `test_连续失败5次后应锁定`），而不是 parametrize 数值型输入输出。两种场景都可能出现在同一个项目里，按情况选择。
 
 ## 运行方式

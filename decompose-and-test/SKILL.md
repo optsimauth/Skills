@@ -36,10 +36,7 @@ description: 编写高准确率AI生成代码的统一流程——先用分层�
 
 ### 第 3 步：为每个叶子函数生成输入输出对
 
-应用 `pytest-io-testing` 的规范：
-- 每个叶子函数对应 `cases` 列表里的若干组 `(输入..., 期望输出)`，覆盖正常值、边界值（0/空/极值）、异常值
-- 纯计算/转换类叶子函数 → `@pytest.mark.parametrize` 数值型测试
-- 涉及状态变化或副作用的叶子函数（比如 `charge_user_for_order`、`deduct_inventory_for_item`）→ 用 mock 隔离外部依赖（HTTP/DB），再对"调用参数是否正确""异常是否正确抛出"做行为型断言，测试函数名用中文描述期望行为
+为每个叶子函数生成输入输出对，具体怎么写 case（取舍标准、置顶、说明字段）按 `pytest-io-testing` 的规则执行，这里不重复。
 
 ### 第 4 步：为编排函数写集成级测试（可选但推荐）
 
@@ -71,12 +68,11 @@ from order import (
     validate_order_is_eligible,
 )
 
-# 纯计算叶子：parametrize 数值对
 discount_cases = [
     (100, "gold", 15.0),
     (100, "silver", 8.0),
-    (100, "bronze", 0.0),   # 边界：未知等级
-    (0, "gold", 0.0),       # 边界：金额为0
+    (100, "bronze", 0.0),
+    (0, "gold", 0.0),
 ]
 
 @pytest.mark.parametrize("total,membership,expected", discount_cases)
@@ -84,7 +80,6 @@ def test_calculate_membership_discount(total, membership, expected):
     actual = calculate_membership_discount(total, membership)
     assert actual == expected, f"输入(total={total}, membership={membership})，期望{expected}，实际{actual}"
 
-# 校验类叶子：行为型测试
 def test_订单金额为0时应拒绝():
     with pytest.raises(ValueError):
         validate_order_is_eligible(order=make_order(total=0), user=make_active_user())
@@ -105,7 +100,6 @@ def test_信用分不足时应拒绝():
 ## 自查清单（完成后过一遍）
 
 - [ ] 编排函数和叶子函数职责清晰分离，没有混层
-- [ ] 每个叶子函数都能在待测清单里找到对应的测试用例
-- [ ] 测试用例覆盖正常值、边界值、异常值三类
+- [ ] 每个叶子函数都能在待测清单里找到对应的测试用例（具体写法是否合规见 pytest-io-testing）
 - [ ] 每个 assert / raises 断言都能让用户不看代码就懂"错在哪"
 - [ ] 已实际执行 `pytest -v` 并把结果（尤其 FAILED 详情）展示给用户，而不是空口说"写好了"
